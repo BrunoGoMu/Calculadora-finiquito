@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora Inteligente de Finiquito - Chile</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root { --bg: #121212; --card: #1e1e1e; --purple: #a288e3; --green: #00ff88; --text: #e0e0e0; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 20px; display: flex; justify-content: center; }
+        .container { background: var(--card); padding: 30px; border-radius: 12px; max-width: 900px; width: 100%; border-top: 5px solid var(--purple); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .field { display: flex; flex-direction: column; }
+        label { font-size: 0.75rem; margin-bottom: 5px; color: #aaa; font-weight: bold; }
+        input, select { background: #2c2c2c; border: 1px solid #444; color: white; padding: 10px; border-radius: 5px; }
+        
+        /* Estilo del Informe (Blanco para el PDF) */
+        .informe-container { margin-top: 30px; padding: 30px; background: white; color: #333; border-radius: 8px; font-size: 0.9rem; }
+        .header-informe { text-align: center; border-bottom: 2px solid #333; margin-bottom: 20px; padding-bottom: 10px; }
+        .seccion { margin-bottom: 20px; padding: 10px; border: 1px solid #eee; border-radius: 5px; }
+        .seccion-titulo { background: #f4f4f4; padding: 5px 10px; font-weight: bold; border-left: 5px solid var(--purple); margin-bottom: 10px; }
+        .fila { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted #ccc; }
+        .total-final { font-size: 1.4rem; text-align: right; margin-top: 20px; font-weight: bold; color: #1b5e20; }
+        
+        button { width: 100%; margin-top: 20px; background: var(--green); color: #121212; padding: 15px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 1.1rem; }
+        button:disabled { background: #555; opacity: 0.6; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="text-align: center; color: var(--purple);">SIMULADOR LEGAL AUTOMATIZADO</h2>
+
+    <div class="grid">
+        <div class="field"><label>Fecha Inicio</label><input type="date" id="fInicio" onchange="calcular()"></div>
+        <div class="field"><label>Fecha Término</label><input type="date" id="fTermino" onchange="calcular()"></div>
+        <div class="field"><label>Valor UF ($)</label><input type="number" id="vUF" value="37500" oninput="calcular()"></div>
+        <div class="field">
+            <label>Causal de Término</label>
+            <select id="fCausal" onchange="calcular()">
+                <option value="159_1">Art. 159 N°1: Mutuo Acuerdo</option>
+                <option value="159_2">Art. 159 N°2: Renuncia</option>
+                <option value="161">Art. 161: Necesidades de la Empresa</option>
+                <option value="161_D">Art. 161: Desahucio Escrito</option>
+                <option value="171">Art. 171: Autodespido</option>
+                </select>
+        </div>
+        <div class="field" id="boxAviso"><label>¿Aviso 30 días?</label><select id="fAviso" onchange="calcular()"><option value="SI">Sí</option><option value="NO">No</option></select></div>
+    </div>
+
+    <div class="grid">
+        <div class="field"><label>Sueldo Base</label><input type="number" id="sBase" value="0" oninput="calcular()"></div>
+        <div class="field"><label>Bonos/Comisiones (Fijo/Variable)</label><input type="number" id="sBono" value="0" oninput="calcular()"></div>
+        <div class="field"><label>Gratificación Mensual</label><input type="number" id="sGrat" value="0" oninput="calcular()"></div>
+        <div class="field"><label>Colación</label><input type="number" id="sCola" value="0" oninput="calcular()"></div>
+        <div class="field"><label>Movilización</label><input type="number" id="sMovi" value="0" oninput="calcular()"></div>
+        <div class="field"><label>Días Pendientes Vacaciones</label><input type="number" id="sVacDías" value="0" oninput="calcular()"></div>
+    </div>
+
+    <div id="informe" class="informe-container">
+        <div class="header-informe">
+            <h3>PROPUESTA DE FINIQUITO LABORAL</h3>
+            <p id="txtFechaEmision"></p>
+        </div>
+
+        <div class="seccion" id="secVac">
+            <div class="seccion-titulo">I. VACACIONES PROPORCIONALES</div>
+            <div class="fila"><span>Días Hábiles Pendientes:</span><span id="resVacDias">0</span></div>
+            <div class="fila"><span>Base diaria (Sueldo + Bono):</span><span id="resVacBase">$0</span></div>
+            <div class="fila" style="border:none"><strong>Subtotal Vacaciones:</strong><span id="resVacMonto">$0</span></div>
+        </div>
+
+        <div class="seccion hidden" id="secIAS">
+            <div class="seccion-titulo">II. INDEMNIZACIÓN POR AÑOS DE SERVICIO (IAS)</div>
+            <div class="fila"><span>Antigüedad servida:</span><span id="resAntigTxt">0 años</span></div>
+            <div class="fila"><span>Años a Indemnizar (Tope 11):</span><span id="resAniosPago">0</span></div>
+            <div class="fila"><span>Tope 90 UF aplicado:</span><span id="resTopeUF">$0</span></div>
+            <div class="fila" style="border:none"><strong>Subtotal IAS:</strong><span id="resIASMonto">$0</span></div>
+        </div>
+
+        <div class="seccion hidden" id="secAviso">
+            <div class="seccion-titulo">III. INDEMNIZACIÓN SUSTITUTIVA MES DE AVISO</div>
+            <div class="fila"><span>Monto (Base sin tope UF):</span><span id="resAvisoMonto">$0</span></div>
+        </div>
+
+        <div class="total-final">TOTAL LÍQUIDO A PAGAR: <span id="resTotal">$0</span></div>
+    </div>
+
+    <button id="btnPDF" onclick="generarPDF()">GENERAR INFORME PDF</button>
+</div>
+
+<script>
+    let pdfRealizado = false;
+    const fmt = (v) => '$' + Math.round(v).toLocaleString('es-CL');
+
+    function calcular() {
+        pdfRealizado = false;
+        document.getElementById('btnPDF').disabled = false;
+        document.getElementById('btnPDF').innerText = "GENERAR INFORME PDF";
+
+        const fi = new Date(document.getElementById('fInicio').value);
+        const ft = new Date(document.getElementById('fTermino').value);
+        if (isNaN(fi) || isNaN(ft)) return;
+
+        // Variables de entrada
+        const uf = parseFloat(document.getElementById('vUF').value) || 0;
+        const sBase = parseFloat(document.getElementById('sBase').value) || 0;
+        const sBono = parseFloat(document.getElementById('sBono').value) || 0;
+        const sGrat = parseFloat(document.getElementById('sGrat').value) || 0;
+        const sCola = parseFloat(document.getElementById('sCola').value) || 0;
+        const sMovi = parseFloat(document.getElementById('sMovi').value) || 0;
+        const dVac = parseFloat(document.getElementById('sVacDías').value) || 0;
+        const causal = document.getElementById('fCausal').value;
+        const avisoPrevio = document.getElementById('fAviso').value;
+
+        // 1. Lógica de Tiempos y Años (Según tu cuaderno)
+        let diffMs = ft - fi;
+        let aniosReales = diffMs / (1000 * 60 * 60 * 24 * 365.25);
+        let aniosFloor = Math.floor(aniosReales);
+        let mesesFraccion = Math.round((aniosReales - aniosFloor) * 12);
+        
+        let aniosParaIAS = (mesesFraccion > 6) ? aniosFloor + 1 : aniosFloor;
+        aniosParaIAS = Math.min(aniosParaIAS, 11);
+
+        // 2. Bases de Cálculo
+        const baseVac = (sBase + sBono) / 30;
+        const baseIndem = sBase + sBono + sGrat + sCola + sMovi;
+        const tope90 = uf * 90;
+        const baseConTope = Math.min(baseIndem, tope90);
+
+        // 3. Inteligencia de Selección (Autodetección legal)
+        const correspondeIAS = (causal === '161' || causal === '161_D' || causal === '171');
+        const correspondeAviso = (correspondeIAS && avisoPrevio === 'NO');
+
+        // Mostrar/Ocultar secciones
+        document.getElementById('secIAS').classList.toggle('hidden', !correspondeIAS);
+        document.getElementById('secAviso').classList.toggle('hidden', !correspondeAviso);
+        document.getElementById('boxAviso').classList.toggle('hidden', !correspondeIAS);
+
+        // Cálculos Finales
+        const totalVac = dVac * baseVac;
+        const totalIAS = correspondeIAS ? (baseConTope * aniosParaIAS) : 0;
+        const totalAviso = correspondeAviso ? baseConTope : 0;
+
+        // Llenar Informe
+        document.getElementById('resVacDias').innerText = dVac;
+        document.getElementById('resVacBase').innerText = fmt(baseVac);
+        document.getElementById('resVacMonto').innerText = fmt(totalVac);
+        
+        document.getElementById('resAntigTxt').innerText = `${aniosFloor} años y ${mesesFraccion} meses`;
+        document.getElementById('resAniosPago').innerText = aniosParaIAS;
+        document.getElementById('resTopeUF').innerText = fmt(tope90);
+        document.getElementById('resIASMonto').innerText = fmt(totalIAS);
+        
+        document.getElementById('resAvisoMonto').innerText = fmt(totalAviso);
+        document.getElementById('resTotal').innerText = fmt(totalVac + totalIAS + totalAviso);
+        document.getElementById('txtFechaEmision').innerText = "Fecha de Cálculo: " + new Date().toLocaleDateString();
+    }
+
+    function generarPDF() {
+        if (pdfRealizado) return;
+        const element = document.getElementById('informe');
+        const opt = { 
+            margin: 0.5, 
+            filename: 'Finiquito_Detalle_Legal.pdf', 
+            html2canvas: { scale: 2 }, 
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } 
+        };
+
+        html2pdf().set(opt).from(element).save().then(() => {
+            pdfRealizado = true;
+            const btn = document.getElementById('btnPDF');
+            btn.disabled = true;
+            btn.innerText = "PDF GENERADO CON ÉXITO";
+        });
+    }
+</script>
+
+</body>
+</html>
